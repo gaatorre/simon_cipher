@@ -6,10 +6,11 @@ module keys(
     input start,
     input [255:0] key,
     output reg done,
-    output reg [63:0] key_sched
+    output reg [63:0] key_sched,
+    output reg [6:0] rnd
     );
     
-    reg [6:0] rnd;
+//    reg [6:0] rnd;
     reg [1:0] state;
     
     reg [63:0] key_tmp [3:0];
@@ -40,11 +41,12 @@ module keys(
         if (!res_n) begin
             state <= idle;
             done <= 0;
+            key_tmp[3] <= key[255:192];
         end
         else
             case (state)
                 idle: begin
-                    rnd <= 0;
+                    rnd <= 6'h0;
                     done <= 0;
                     
                     if (start)
