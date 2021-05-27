@@ -6,70 +6,104 @@ module simon(
     input start,
     input ctrl,
     input [255:0] keys,
-    input [127:0] pt,
-    output [127:0] ct,
+    input [127:0] in,
+    output [127:0] out,
     output done
     );
     
-    wire [63:0] key_out;
-    wire key_done;
-    wire key_start;
-    wire [6:0] key_rnd;
-    wire [6:0] simon_rnd;
-    wire [63:0] simon_key;
+    reg [63:0] mem[0:71];
     
-    wire ld_keys;
+    reg key_done;
+    wire [4:0] fsm_state;
     
-    // FSM
-    reg [4:0] state;
-    parameter idle = 5'b00001;
-    parameter enc_gen = 5'b00010;
-    parameter dec_gen = 5'b00100;
-    parameter enc = 5'b01000;
-    parameter dec = 5'b10000;
+    wire dec_done;
     
-    // ctrl
-    parameter ctrl_enc = 1'b0;
-    parameter ctrl_dec = 1'b1;
+//    dec d(.clk(clk), .res_n(fsm_state[4]), .start(fsm_state[4]), .key(simon_key), .cipher(in), .plain(out), .done(dec_done), .key_adr(key_adr));
     
-    // wr_addr is -1 because key_rnd is the next round
-    dp_mem mem(.clk(clk), .data_in(key_out), .dat_out(simon_key), .wr_en({state[0], state[1] | state[2]}), .wr_adr(key_rnd - 1), .rd_adr(simon_rnd), .keys(keys));
+    // Starting here!
+    simon_fsm f(.clk(clk), .res_n(res_n), .ctrl(ctrl), .start(start), .key_done(key_done), .state(fsm_state));
     
-    keys key_schedule(.clk(clk), .res_n(res_n), .key(keys), .rnd(key_rnd), .key_sched(key_out), .done(key_done), .start(state[1] | state[2]));
+    // Key schedule here
     
+    reg [1:0] key_state;
+    reg [6:0] key_rnd;
+    reg [63:0] key_tmp [3:0];
+    reg [63:0] key_scratch;
     
-    always @(posedge clk) begin
-        if (!res_n) begin
-            if (start && ctrl == ctrl_enc)
-                state <= enc_gen;
-            else if (start && ctrl == ctrl_dec)
-                state <= dec_gen;
-            else
-                state <= idle;
+    parameter idle = 2'b00; 
+    parameter strt = 2'b01; 
+    parameter gen = 2'b10; 
+    
+    // Constant required for Simon
+    parameter z = 64'h3DC94C3A046D678B;
+    
+    always @(*)
+    begin
+        
+        if (key_state == gen) begin
+            key_scratch = {key_tmp[3][2:0], key_tmp[3][63:3]};
+            key_scratch = key_scratch ^ key_tmp[1];
+            key_scratch = key_scratch ^ {key_scratch[0], key_scratch[63:1]};
+            key_scratch = ~key_tmp[0] ^ 64'h3 ^ key_scratch ^ z[(key_rnd - 4) % 62];
             end
         else
-            case (state)
-                idle:
-                    if (start && ctrl == ctrl_enc)
-                        state <= enc_gen;
-                    else if (start && ctrl == ctrl_dec)
-                        state <= dec_gen;
-                    else
-                        state <= idle;
-                enc_gen:
-                    state <= enc;
-                dec_gen:
-                    if (key_done)
-                        state <= dec;
-                    else
-                        state <= dec_gen;
-                enc:
-                    $display("ENC");
-                dec:
-                    $display("DEC");
-            endcase
+            key_scratch = 0;
     end
     
-    assign done = state[3] | state[4];
+    always @(posedge clk)
+    begin
+        if (!res_n) begin
+            key_state <= idle;
+            key_done <= 0;
+        end
+        else
+            case (key_state)
+                idle: begin
+                    key_rnd <= 6'h0;
+                    key_done <= 0;
+                    
+                    if (start)
+                        key_state <= strt;
+                    end
+                strt: begin
+                    key_rnd <= 0;
+                    key_done <= 0;
+                    
+                    key_tmp[0] <= keys[63:0];
+                    key_tmp[1] <= keys[127:64];
+                    key_tmp[2] <= keys[191:128];
+                    key_tmp[3] <= keys[255:192];
+                    
+                    mem[0] <= keys[63:0];
+                    mem[1] <= keys[127:64];
+                    mem[2] <= keys[191:128];
+                    mem[3] <= keys[255:192];
+                    
+                    key_rnd <= 6'h4;
+                    
+                    key_state <= gen;
+                    end
+                gen: begin
+                    if (key_rnd < 72) begin
+                        key_tmp[3] <= key_scratch;
+                        key_tmp[2] <= key_tmp[3];
+                        key_tmp[1] <= key_tmp[2];
+                        key_tmp[0] <= key_tmp[1];
+                        
+                        mem[key_rnd] <= key_scratch;
+                        
+                        key_rnd <= key_rnd + 1;
+                        key_done <= 0;
+                        end
+                    else begin
+                        key_done <= 1;
+                        end
+                    end
+                default:
+                    key_state <= idle;
+            endcase 
+    end
+    
+    assign done = dec_done;
     
 endmodule
