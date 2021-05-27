@@ -7,18 +7,14 @@ module simon(
     input ctrl,
     input [255:0] keys,
     input [127:0] in,
-    output [127:0] out,
-    output done
+    output reg [127:0] out,
+    output reg done
     );
     
     reg [63:0] mem[0:71];
     
     reg key_done;
     wire [4:0] fsm_state;
-    
-    wire dec_done;
-    
-//    dec d(.clk(clk), .res_n(fsm_state[4]), .start(fsm_state[4]), .key(simon_key), .cipher(in), .plain(out), .done(dec_done), .key_adr(key_adr));
     
     // Starting here!
     simon_fsm f(.clk(clk), .res_n(res_n), .ctrl(ctrl), .start(start), .key_done(key_done), .state(fsm_state));
@@ -39,7 +35,6 @@ module simon(
     
     always @(*)
     begin
-        
         if (key_state == gen) begin
             key_scratch = {key_tmp[3][2:0], key_tmp[3][63:3]};
             key_scratch = key_scratch ^ key_tmp[1];
@@ -104,6 +99,25 @@ module simon(
             endcase 
     end
     
-    assign done = dec_done;
+    // Decryption/encryption stuff here!
+    reg [63:0] cipher_rnd;
+    
+    always @(posedge clk) begin
+        if (!fsm_state[4]) begin
+            cipher_rnd <= ctrl ? 71 : 0;
+            done <= 0;
+            out <= in;
+        end
+        else if (fsm_state[4]) begin
+            if (cipher_rnd >= 0 && cipher_rnd <= 71) begin
+                out <= {out[63:0], mem[cipher_rnd] ^ out[127:64] ^ {out[61:0], out[63:62]} ^ ({out[62:0], out[63]} & {out[55:0], out[63:56]})};
+                cipher_rnd <= cipher_rnd - 1;
+                done <= 0;
+                end
+            else begin
+                done <= 1;
+                end
+        end 
+    end
     
 endmodule

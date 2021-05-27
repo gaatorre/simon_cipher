@@ -45,10 +45,6 @@ module simon_fsm(
                         state <= dec;
                     else
                         state <= dec_gen;
-                enc:
-                    $display("ENC");
-                dec:
-                    $display("DEC");
             endcase
     end
 endmodule
