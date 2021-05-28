@@ -39,10 +39,7 @@ module simon_fsm(
                     else
                         state <= idle;
                 enc_gen:
-                    if (key_done)
-                        state <= enc;
-                    else
-                        state <= enc_gen;
+                    state <= enc;
                 dec_gen:
                     if (key_done)
                         state <= dec;
