@@ -12,6 +12,7 @@ module simon_fsm(
     // FSM
     parameter idle = 5'b00001;
     parameter enc_gen = 5'b00010;
+    parameter enc_wait =5'b00011; 
     parameter dec_gen = 5'b00100;
     parameter enc = 5'b01000;
     parameter dec = 5'b10000;
@@ -39,6 +40,8 @@ module simon_fsm(
                     else
                         state <= idle;
                 enc_gen:
+                    state <= enc_wait;
+                enc_wait:
                     state <= enc;
                 dec_gen:
                     if (key_done)

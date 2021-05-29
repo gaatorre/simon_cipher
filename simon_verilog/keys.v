@@ -97,7 +97,4 @@ module keys(
                     state <= idle;
             endcase 
     end
-    
-    // FIXME later
-//    assign wr_en = (state[1] || state[0] || (state == idle && start)) & ~done;
 endmodule
